@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-package pl.jdev.integration;
+package pl.jdev.opes_integration.integration;
 
 import java.io.File;
 import java.io.FileInputStream;

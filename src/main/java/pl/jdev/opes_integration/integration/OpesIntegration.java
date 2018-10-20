@@ -1,4 +1,4 @@
-package pl.jdev.integration;
+package pl.jdev.opes_integration.integration;
 
 import org.springframework.boot.SpringApplication;
 import org.springframework.boot.autoconfigure.EnableAutoConfiguration;

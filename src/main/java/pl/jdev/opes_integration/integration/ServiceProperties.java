@@ -1,5 +1,5 @@
 /*
- * Copyright 2012-2013 the original author or authors.
+ * Copyright 2012-2014 the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -14,19 +14,21 @@
  * limitations under the License.
  */
 
-package pl.jdev.integration;
+package pl.jdev.opes_integration.integration;
 
-import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.stereotype.Component;
+import org.springframework.boot.context.properties.ConfigurationProperties;
 
-@Component
-public class HelloWorldService {
+@ConfigurationProperties(prefix = "service", ignoreUnknownFields = false)
+public class ServiceProperties {
 
-	@Autowired
-	private ServiceProperties configuration;
+	private String greeting = "Hello";
 
-	public String getHelloMessage(String name) {
-		return this.configuration.getGreeting() + " " + name;
+	public String getGreeting() {
+		return this.greeting;
+	}
+
+	public void setGreeting(String greeting) {
+		this.greeting = greeting;
 	}
 
 }

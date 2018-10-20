@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-package pl.jdev.integration.consumer;
+package pl.jdev.opes_integration.integration.consumer;
 
 import java.util.concurrent.Callable;
 import java.util.concurrent.Executors;
@@ -31,8 +31,8 @@ import org.springframework.core.io.Resource;
 import org.springframework.core.io.support.ResourcePatternUtils;
 import org.springframework.util.StreamUtils;
 
-import pl.jdev.integration.OpesIntegration;
-import pl.jdev.integration.producer.ProducerApplication;
+import pl.jdev.opes_integration.integration.OpesIntegration;
+import pl.jdev.opes_integration.integration.producer.ProducerApplication;
 
 import static org.junit.Assert.assertTrue;
 

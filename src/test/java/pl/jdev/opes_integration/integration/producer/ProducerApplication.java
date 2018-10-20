@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-package pl.jdev.integration.producer;
+package pl.jdev.opes_integration.integration.producer;
 
 import java.io.File;
 import java.io.FileOutputStream;
