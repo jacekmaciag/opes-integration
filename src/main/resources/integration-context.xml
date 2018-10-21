@@ -1,20 +1,48 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <beans xmlns="http://www.springframework.org/schema/beans"
-	xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
-	xmlns:int="http://www.springframework.org/schema/integration"
-	xmlns:int-file="http://www.springframework.org/schema/integration/file"
-	xsi:schemaLocation="http://www.springframework.org/schema/integration http://www.springframework.org/schema/integration/spring-integration.xsd
-		http://www.springframework.org/schema/integration/file http://www.springframework.org/schema/integration/file/spring-integration-file.xsd
-		http://www.springframework.org/schema/beans http://www.springframework.org/schema/beans/spring-beans.xsd">
+       xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+       xmlns:int="http://www.springframework.org/schema/integration"
+       xmlns:int-http="http://www.springframework.org/schema/integration/http"
+       xsi:schemaLocation="
+       	http://www.springframework.org/schema/beans
+		http://www.springframework.org/schema/beans/spring-beans.xsd
+        http://www.springframework.org/schema/integration
+        http://www.springframework.org/schema/integration/spring-integration.xsd
+        http://www.springframework.org/schema/integration/http
+        http://www.springframework.org/schema/integration/http/spring-integration-http.xsd">
 
-	<int-file:inbound-channel-adapter channel="input" directory="target/input" filename-pattern="*">
-		<int:poller fixed-rate="500"/>
-	</int-file:inbound-channel-adapter>
+    <int:annotation-config/>
 
-	<int:service-activator input-channel="input" ref="sampleEndpoint" output-channel="output"/>
+    <!-- Inbound/Outbound Channels -->
+    <int:channel id="pricingEventChannel"/>
+    <int:channel id="dataRequestChannel"/>
+    <int:channel id="dataResponseChannel"/>
+    <int:channel id="smaRequestChannel"/>
+    <int:channel id="emaChannel"/>
+    <!--<int:channel id=""/>-->
+    <!--<int:channel id=""/>-->
 
-	<int:channel id="output"/>
+    <int-http:inbound-gateway id="dataRequestGateway"
+                              supported-methods="GET"
+                              path="/data"
+                              request-channel="dataRequestChannel"
+                              reply-channel="dataResponseChannel">
+        <int-http:request-mapping consumes="application/json"
+                                  produces="application/json"
+                                  headers="requestType"/>
+    </int-http:inbound-gateway>
 
-	<int-file:outbound-channel-adapter channel="output" directory="target/output"/>
+
+    <int:router id="dataRequestRouter"
+                input-channel="dataRequestChannel"
+                expression="headers.requestType">
+        <int:mapping value="smaRequest" channel="smaChannel"/>
+        <int:mapping value="emaRequest" channel="emaChannel"/>
+    </int:router>
+
+    <int-http:outbound-gateway id="smaRequestGateway"
+                               request-channel="smaRequestChannel"
+                               reply-channel="dataResponseChannel"
+                               url="localhost:8080"/>
 
 </beans>
