@@ -43,6 +43,6 @@
     <int-http:outbound-gateway id="smaRequestGateway"
                                request-channel="smaRequestChannel"
                                reply-channel="dataResponseChannel"
-                               url="localhost:8080"/>
+                               url="${opes.bot.host}"/>
 
 </beans>
