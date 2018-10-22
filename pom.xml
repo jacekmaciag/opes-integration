@@ -11,6 +11,7 @@
     <groupId>pl.jdev</groupId>
     <name>Opes Integration</name>
     <version>1.0-SNAPSHOT</version>
+    <packaging>war</packaging>
     <properties>
         <maven.compiler.source>9</maven.compiler.source>
         <maven.compiler.target>9</maven.compiler.target>
