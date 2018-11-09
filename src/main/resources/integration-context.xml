@@ -13,36 +13,44 @@
 
     <int:annotation-config/>
 
-    <!-- Inbound/Outbound Channels -->
+    <!-- Channels -->
+    <int:logging-channel-adapter id="loggingChannel" level="DEBUG" expression="payload"/>
+    <int:wire-tap channel="loggingChannel"/>
     <int:channel id="pricingEventChannel"/>
     <int:channel id="dataRequestChannel"/>
     <int:channel id="dataResponseChannel"/>
+    <int:channel id="dataRequestDLChannel">
+        <int:queue capacity="10"/>
+    </int:channel>
     <int:channel id="smaRequestChannel"/>
-    <int:channel id="emaChannel"/>
+    <int:channel id="emaRequestChannel"/>
     <!--<int:channel id=""/>-->
     <!--<int:channel id=""/>-->
 
     <int-http:inbound-gateway id="dataRequestGateway"
-                              supported-methods="GET"
+                              supported-methods="POST"
                               path="/data"
                               request-channel="dataRequestChannel"
-                              reply-channel="dataResponseChannel">
-        <int-http:request-mapping consumes="application/json"
-                                  produces="application/json"
-                                  headers="requestType"/>
+                              reply-channel="dataResponseChannel"
+                              mapped-request-headers="Data-Type, User-Agent, Content-Type, Connection">
     </int-http:inbound-gateway>
 
-
-    <int:router id="dataRequestRouter"
-                input-channel="dataRequestChannel"
-                expression="headers.requestType">
-        <int:mapping value="smaRequest" channel="smaChannel"/>
-        <int:mapping value="emaRequest" channel="emaChannel"/>
-    </int:router>
+    <int:header-value-router id="dataRequestRouter"
+                             input-channel="dataRequestChannel"
+                             header-name="data-type">
+        <int:mapping value="sma" channel="smaRequestChannel"/>
+        <int:mapping value="ema" channel="emaRequestChannel"/>
+    </int:header-value-router>
 
     <int-http:outbound-gateway id="smaRequestGateway"
                                request-channel="smaRequestChannel"
                                reply-channel="dataResponseChannel"
-                               url="${opes.bot.host}"/>
+                               http-method="POST"
+                               url="${opes.bot.host}/bot/indicator/sma"/>
 
+    <int-http:outbound-gateway id="emaRequestGateway"
+                               request-channel="emaRequestChannel"
+                               reply-channel="dataResponseChannel"
+                               http-method="POST"
+                               url="${opes.bot.host}/bot/indicator/ema"/>
 </beans>
