@@ -13,44 +13,73 @@
 
     <int:annotation-config/>
 
-    <!-- Channels -->
+    <!-- Misc Channels -->
     <int:logging-channel-adapter id="loggingChannel" level="DEBUG" expression="payload"/>
     <int:wire-tap channel="loggingChannel"/>
+
+    <!--Event-->
+    <int:channel id="eventChannel"/>
     <int:channel id="pricingEventChannel"/>
+    <int:channel id="tradeEventChannel"/>
+
+    <int-http:inbound-channel-adapter id="eventInboundAdapter"
+                                      supported-methods="POST"
+                                      path="/event"
+                                      channel="eventChannel"/>
+
+    <int:header-value-router id="eventRouter"
+                             input-channel="eventChannel"
+                             header-name="event-type">
+
+        <int:mapping value="pricing" channel="pricingEventChannel"/>
+    </int:header-value-router>
+
+    <int-http:outbound-channel-adapter id="pricingEventOutboundAdapter"
+                                       channel="pricingEventChannel"
+                                       http-method="POST"
+                                       url="${opes.bot.host}/bot/"/>
+
+    <!--Data Request-->
     <int:channel id="dataRequestChannel"/>
     <int:channel id="dataResponseChannel"/>
     <int:channel id="dataRequestDLChannel">
         <int:queue capacity="10"/>
     </int:channel>
+    <int:channel id="pricingRequestChannel"/>
     <int:channel id="smaRequestChannel"/>
     <int:channel id="emaRequestChannel"/>
-    <!--<int:channel id=""/>-->
-    <!--<int:channel id=""/>-->
 
     <int-http:inbound-gateway id="dataRequestGateway"
                               supported-methods="POST"
                               path="/data"
                               request-channel="dataRequestChannel"
                               reply-channel="dataResponseChannel"
-                              mapped-request-headers="Data-Type, User-Agent, Content-Type, Connection">
-    </int-http:inbound-gateway>
+                              mapped-request-headers="Data-Type, User-Agent, Content-Type, Connection"/>
 
     <int:header-value-router id="dataRequestRouter"
                              input-channel="dataRequestChannel"
                              header-name="data-type">
+        <int:mapping value="pricing" channel="pricingRequestChannel"/>
         <int:mapping value="sma" channel="smaRequestChannel"/>
         <int:mapping value="ema" channel="emaRequestChannel"/>
     </int:header-value-router>
+
 
     <int-http:outbound-gateway id="smaRequestGateway"
                                request-channel="smaRequestChannel"
                                reply-channel="dataResponseChannel"
                                http-method="POST"
-                               url="${opes.bot.host}/bot/indicator/sma"/>
+                               url="${opes.bot.host}/bot/indicator/sma"
+                               mapped-request-headers="Data-Type, User-Agent, Content-Type, Connection"
+                               expected-response-type="java.util.Map"/>
 
     <int-http:outbound-gateway id="emaRequestGateway"
                                request-channel="emaRequestChannel"
                                reply-channel="dataResponseChannel"
                                http-method="POST"
-                               url="${opes.bot.host}/bot/indicator/ema"/>
+                               url="${opes.bot.host}/bot/indicator/ema"
+                               mapped-request-headers="Data-Type, User-Agent, Content-Type, Connection"
+                               expected-response-type="java.util.Map"/>
+
+
 </beans>
