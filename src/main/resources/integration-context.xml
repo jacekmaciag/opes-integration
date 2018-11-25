@@ -53,6 +53,9 @@
     </int:channel>
     <int:channel id="dataResponseChannel"/>
     <int:channel id="pricingRequestChannel"/>
+    <int:channel id="orderDetailsRequestChannel"/>
+    <int:channel id="tradeDetailsRequestChannel"/>
+    <int:channel id="transactionDetailsRequestChannel"/>
     <int:channel id="smaRequestChannel"/>
     <int:channel id="emaRequestChannel"/>
 
@@ -67,6 +70,9 @@
                              input-channel="dataRequestChannel"
                              header-name="data-type">
         <int:mapping value="pricing" channel="pricingRequestChannel"/>
+        <int:mapping value="order" channel="orderDetailsRequestChannel"/>
+        <int:mapping value="trade" channel="tradeDetailsRequestChannel"/>
+        <int:mapping value="transaction" channel="transactionDetailsRequestChannel"/>
         <int:mapping value="sma" channel="smaRequestChannel"/>
         <int:mapping value="ema" channel="emaRequestChannel"/>
     </int:header-value-router>
@@ -97,5 +103,27 @@
                                url="${opes.bot.host}/bot/indicator/ema"
                                mapped-request-headers="Data-Type, User-Agent, Content-Type, Connection"
                                expected-response-type="java.util.Map"/>
+
+    <!--Action-->
+    <int:channel id="actionRequestChannel"/>
+    <int:channel id="actionRequestDLChannel">
+        <int:queue capacity="10"/>
+    </int:channel>
+    <int:channel id="actionResponseChannel"/>
+
+    <int-http:inbound-gateway id="actionGateway"
+                              supported-methods="POST"
+                              path="/action"
+                              request-channel="actionRequestChannel"
+                              reply-channel="actionResponseChannel"
+                              mapped-request-headers="Action-Type, User-Agent, Content-Type, Connection"/>
+
+    <int:header-value-router id="actionRouter"
+                             input-channel="actionRequestChannel"
+                             header-name="action-type">
+        <int:mapping value="createOrder" channel="createOrderChannel"/>
+        <int:mapping value="cancelOrder" channel="cancelOrderChannel"/>
+        <int:mapping value="closeTrade" channel="closeTradeChannel"/>
+    </int:header-value-router>
 
 </beans>
