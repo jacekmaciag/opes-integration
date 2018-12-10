@@ -53,6 +53,8 @@
     </int:channel>
     <int:channel id="dataResponseChannel"/>
     <int:channel id="pricingRequestChannel"/>
+    <int:channel id="candleRequestChannel"/>
+    <int:channel id="deserializedCandleRequestChannel"/>
     <int:channel id="orderDetailsRequestChannel"/>
     <int:channel id="tradeDetailsRequestChannel"/>
     <int:channel id="transactionDetailsRequestChannel"/>
@@ -70,6 +72,7 @@
                              input-channel="dataRequestChannel"
                              header-name="data-type">
         <int:mapping value="pricing" channel="pricingRequestChannel"/>
+        <int:mapping value="candle" channel="candleRequestChannel"/>
         <int:mapping value="order" channel="orderDetailsRequestChannel"/>
         <int:mapping value="trade" channel="tradeDetailsRequestChannel"/>
         <int:mapping value="transaction" channel="transactionDetailsRequestChannel"/>
@@ -81,18 +84,54 @@
                                request-channel="pricingRequestChannel"
                                reply-channel="dataResponseChannel"
                                http-method="GET"
-                               url="${opes.core.host}/pricing?instruments={instruments}%26since={since}"
+                               url="${opes.oanda.host}/pricing?instruments={instruments}%26since={since}"
                                mapped-request-headers="Data-Type, User-Agent, Content-Type, Connection"
                                expected-response-type="java.util.Map">
         <int-http:uri-variable name="instruments" expression="payload.instruments"/>
         <int-http:uri-variable name="since" expression="payload.since"/>
     </int-http:outbound-gateway>
 
+    <!--<int:json-to-object-transformer input-channel="candleRequestChannel"-->
+    <!--output-channel="deserializedCandleRequestChannel"-->
+    <!--type="pl.jdev.opes_commons.rest.message.CandlesRequest"/>-->
+
+    <!--<int-http:outbound-gateway id="candleRequestGateway"-->
+    <!--request-channel="deserializedCandleRequestChannel"-->
+    <!--reply-channel="dataResponseChannel"-->
+    <!--mapped-request-headers="Data-Type, User-Agent, Content-Type, Connection"-->
+    <!--expected-response-type="pl.jdev.opes_commons.rest.wrapper.JsonCandlestickListWrapper"-->
+    <!--http-method="GET"-->
+    <!--url-expression="T(org.springframework.web.util.UriComponentsBuilder)-->
+    <!--.fromHttpUrl('${opes.oanda.host}/${opes.oanda.version}/instruments/{instrument}/candles')-->
+    <!--.queryParam('priceType', payload.getPriceType())-->
+    <!--.queryParam('granularity', payload.getGranularity())-->
+    <!--.query(payload.getCount() != 0 ? 'count=' + payload.getCount() : '')-->
+    <!--.query(payload.getFrom() != null ? 'from=' + payload.getFrom() : '')-->
+    <!--.query(payload.getTo() != null ? 'to=' + payload.getTo() : '')-->
+    <!--.buildAndExpand(payload.getInstrument())-->
+    <!--.toUri()"/>-->
+
+    <int-http:outbound-gateway id="candleRequestGateway"
+                               request-channel="candleRequestChannel"
+                               reply-channel="dataResponseChannel"
+                               mapped-request-headers="Data-Type, User-Agent, Content-Type, Connection"
+                               expected-response-type="pl.jdev.opes_commons.rest.wrapper.JsonCandlestickListWrapper"
+                               http-method="GET"
+                               url-expression="T(org.springframework.web.util.UriComponentsBuilder)
+    .fromHttpUrl('${opes.oanda.host}/${opes.oanda.version}/instruments/{instrument}/candles')
+    .queryParam('priceType', #jsonPath(payload, '$.priceType'))
+    .queryParam('granularity', #jsonPath(payload, '$.granularity'))
+    .query(#jsonPath(payload, '$.count') != 0 ? 'count=' + #jsonPath(payload, '$.count') : '')
+    .query(#jsonPath(payload, '$.from') != null ? 'from=' + #jsonPath(payload, '$.from') : '')
+    .query(#jsonPath(payload, '$.to') != null ? 'to=' + #jsonPath(payload, '$.to') : '')
+    .buildAndExpand(#jsonPath(payload, '$.instrument'))
+    .toUri()"/>
+
     <int-http:outbound-gateway id="smaRequestGateway"
                                request-channel="smaRequestChannel"
                                reply-channel="dataResponseChannel"
                                http-method="POST"
-                               url="${opes.bot.host}/bot/indicator/sma"
+                               url="${opes.bot.host}/${opes.bot.version}/indicator/sma"
                                mapped-request-headers="Data-Type, User-Agent, Content-Type, Connection"
                                expected-response-type="java.util.Map"/>
 
@@ -100,7 +139,7 @@
                                request-channel="emaRequestChannel"
                                reply-channel="dataResponseChannel"
                                http-method="POST"
-                               url="${opes.bot.host}/bot/indicator/ema"
+                               url="${opes.bot.host}/${opes.bot.version}/indicator/ema"
                                mapped-request-headers="Data-Type, User-Agent, Content-Type, Connection"
                                expected-response-type="java.util.Map"/>
 
@@ -110,6 +149,9 @@
         <int:queue capacity="10"/>
     </int:channel>
     <int:channel id="actionResponseChannel"/>
+    <int:channel id="createOrderChannel"/>
+    <int:channel id="cancelOrderChannel"/>
+    <int:channel id="closeTradeChannel"/>
 
     <int-http:inbound-gateway id="actionGateway"
                               supported-methods="POST"
@@ -125,5 +167,26 @@
         <int:mapping value="cancelOrder" channel="cancelOrderChannel"/>
         <int:mapping value="closeTrade" channel="closeTradeChannel"/>
     </int:header-value-router>
+
+    <int-http:outbound-channel-adapter id="createOrderOutboundAdapter"
+                                       channel="createOrderChannel"
+                                       http-method="POST"
+                                       url="${opes.oanda.host}/${opes.oanda.version}/orders"/>
+
+    <int-http:outbound-channel-adapter id="cancelOrderOutboundAdapter"
+                                       channel="cancelOrderChannel"
+                                       http-method="PUT"
+                                       url-expression="T(org.springframework.web.util.UriComponentsBuilder)
+    .fromHttpUrl('${opes.oanda.host}/${opes.oanda.version}/orders/{extOrderId}')
+    .buildAndExpand(payload.getExtOrderId())
+    .toUri()"/>
+
+    <int-http:outbound-channel-adapter id="closeTradeOutboundAdapter"
+                                       channel="closeTradeChannel"
+                                       http-method="PUT"
+                                       url-expression="T(org.springframework.web.util.UriComponentsBuilder)
+    .fromHttpUrl('${opes.oanda.host}/${opes.oanda.version}/trades/{extTradeId}/close')
+    .buildAndExpand(payload.getExtOrderId())
+    .toUri()"/>
 
 </beans>
