@@ -4,8 +4,8 @@
        xmlns:int="http://www.springframework.org/schema/integration"
        xmlns:int-http="http://www.springframework.org/schema/integration/http"
        xsi:schemaLocation="
-       	http://www.springframework.org/schema/beans
-		http://www.springframework.org/schema/beans/spring-beans.xsd
+        http://www.springframework.org/schema/beans
+    http://www.springframework.org/schema/beans/spring-beans.xsd
         http://www.springframework.org/schema/integration
         http://www.springframework.org/schema/integration/spring-integration.xsd
         http://www.springframework.org/schema/integration/http
@@ -13,112 +13,143 @@
 
     <int:annotation-config/>
 
+    <!--
+    eventChan+->systemChan
+             |
+             +->entityEventChan+->accountChan
+                               |
+                               +->pricingChan
+                               |
+                               +->indicatorChan
+                               |
+                               +->orderEventChan
+                               |
+                               +->tradeEventChan
+    -->
+
     <!-- Misc Channels -->
-    <int:logging-channel-adapter id="loggingChannel" level="DEBUG" expression="payload"/>
-    <int:wire-tap channel="loggingChannel"/>
+    <int:logging-channel-adapter id="loggingChan" level="DEBUG" expression="payload"/>
+    <int:wire-tap channel="loggingChan"/>
 
     <!--Event-->
-    <int:publish-subscribe-channel id="eventChannel"/>
-    <int:publish-subscribe-channel id="pricingEventChannel"/>
-    <int:publish-subscribe-channel id="orderEventChannel"/>
-    <int:publish-subscribe-channel id="tradeEventChannel"/>
+    <int:publish-subscribe-channel id="eventChan"/>
+    <int:publish-subscribe-channel id="errorChan"/>
+    <int:publish-subscribe-channel id="systemChan"/>
+    <int:publish-subscribe-channel id="entityEventChan"/>
+    <int:publish-subscribe-channel id="accountChan"/>
+    <int:publish-subscribe-channel id="pricingChan"/>
+    <int:publish-subscribe-channel id="indicatorChan"/>
+    <int:publish-subscribe-channel id="orderEventChan"/>
+    <int:publish-subscribe-channel id="tradeEventChan"/>
 
     <int-http:inbound-channel-adapter id="eventInboundAdapter"
                                       supported-methods="POST"
                                       path="/event"
-                                      channel="eventChannel"/>
+                                      channel="eventChan"
+                                      mapped-request-headers="id, timestamp, content-type, content-length, event-type"
+                                      request-payload-type="java.lang.String"
+                                      error-channel="errorChan"/>
 
     <int:header-value-router id="eventRouter"
-                             input-channel="eventChannel"
+                             input-channel="eventChan"
                              header-name="event-type">
-        <int:mapping value="pricing" channel="pricingEventChannel"/>
-        <int:mapping value="order" channel="orderEventChannel"/>
-        <int:mapping value="trade" channel="tradeEventChannel"/>
+        <int:mapping value="account.synced" channel="entityEventChan"/>
+        <int:mapping value="account.unsynced" channel="entityEventChan"/>
+        <int:mapping value="account.updated" channel="entityEventChan"/>
+        <int:mapping value="order.created" channel="orderEventChan"/>
+        <int:mapping value="order.cancelled" channel="orderEventChan"/>
+        <int:mapping value="order.updated" channel="orderEventChan"/>
+        <int:mapping value="trade.open" channel="tradeEventChan"/>
+        <int:mapping value="trade.closed" channel="tradeEventChan"/>
+        <int:mapping value="trade.updated" channel="tradeEventChan"/>
+        <int:mapping value="candlesticks.updated" channel="pricingChan"/>
+        <int:mapping value="indicator.created" channel="indicatorChan"/>
     </int:header-value-router>
 
-    <int-http:outbound-channel-adapter id="pricingEventOutboundAdapter"
-                                       channel="pricingEventChannel"
-                                       http-method="POST"
-                                       url="${opes.bot.host}/bot/"/>
+    <!--<int-http:outbound-channel-adapter id="botPricingFeedAdapter"-->
+    <!--channel="pricingChan"-->
+    <!--http-method="POST"-->
+    <!--url="${opes.bot.host}/bot/"/>-->
 
-    <int-http:outbound-channel-adapter id="pricingEventOutboundAdapter"
-                                       channel="pricingEventChannel"
-                                       http-method="POST"
-                                       url="${opes.bot.host}/bot/"/>
+    <!--<int-http:outbound-channel-adapter id="botIndicatorFeedAdapter"-->
+    <!--channel="indicatorChan"-->
+    <!--http-method="POST"-->
+    <!--url="${opes.bot.host}/bot/"/>-->
 
-    <!--Data Request-->
-    <int:channel id="dataRequestChannel"/>
-    <int:channel id="dataRequestDLChannel">
+    <int-http:outbound-channel-adapter id="abacusPricingFeedAdapter"
+                                       channel="pricingChan"
+                                       http-method="POST"
+                                       mapped-request-headers="id, content-type, content-length"
+                                       expected-response-type="java.lang.String"
+                                       url="${opes.abacus.host}/all"/>
+
+    <!--Request-->
+    <int:channel id="requestChan"/>
+    <int:channel id="dataRequestDlChan">
         <int:queue capacity="10"/>
     </int:channel>
-    <int:channel id="dataResponseChannel"/>
-    <int:channel id="pricingRequestChannel"/>
-    <int:channel id="candleRequestChannel"/>
-    <int:channel id="deserializedCandleRequestChannel"/>
-    <int:channel id="orderDetailsRequestChannel"/>
-    <int:channel id="tradeDetailsRequestChannel"/>
-    <int:channel id="transactionDetailsRequestChannel"/>
-    <int:channel id="smaRequestChannel"/>
-    <int:channel id="emaRequestChannel"/>
+    <int:channel id="responseChan"/>
 
-    <int-http:inbound-gateway id="dataRequestGateway"
-                              supported-methods="POST"
-                              path="/data"
-                              request-channel="dataRequestChannel"
-                              reply-channel="dataResponseChannel"
-                              mapped-request-headers="Data-Type, User-Agent, Content-Type, Connection"/>
+    <int-http:inbound-gateway id="requestGw"
+                              supported-methods="GET, POST"
+                              path="/request"
+                              request-channel="requestChan"
+                              mapped-request-headers="Request-Type, User-Agent, Content-Type, Connection, Accept"
+                              reply-channel="responseChan">
+        <int-http:request-mapping consumes="application/json" produces="application/json"/>
+    </int-http:inbound-gateway>
 
-    <int:header-value-router id="dataRequestRouter"
-                             input-channel="dataRequestChannel"
-                             header-name="data-type">
-        <int:mapping value="pricing" channel="pricingRequestChannel"/>
-        <int:mapping value="candle" channel="candleRequestChannel"/>
-        <int:mapping value="order" channel="orderDetailsRequestChannel"/>
-        <int:mapping value="trade" channel="tradeDetailsRequestChannel"/>
-        <int:mapping value="transaction" channel="transactionDetailsRequestChannel"/>
-        <int:mapping value="sma" channel="smaRequestChannel"/>
-        <int:mapping value="ema" channel="emaRequestChannel"/>
+    <int:header-value-router id="requestRouter"
+                             input-channel="requestChan"
+                             header-name="request-type">
+        <int:mapping value="ACCOUNT_DETAILS" channel="accountDetailsRequestChan"/>
+        <int:mapping value="pricing" channel="pricingRequestChan"/>
+        <int:mapping value="CANDLES" channel="candleRequestChan"/>
+        <int:mapping value="ORDER_DETAILS" channel="orderDetailsRequestChan"/>
+        <int:mapping value="TRADE_DETAILS" channel="tradeDetailsRequestChan"/>
+        <int:mapping value="transaction" channel="transactionDetailsRequestChan"/>
+        <int:mapping value="ema" channel="emaRequestChan"/>
+        <int:mapping value="CREATE_ORDER" channel="createOrderChan"/>
+        <int:mapping value="CANCEL_ORDER" channel="cancelOrderChan"/>
+        <int:mapping value="CLOSE_TRADE" channel="closeTradeChan"/>
     </int:header-value-router>
 
-    <int-http:outbound-gateway id="pricingRequestGateway"
-                               request-channel="pricingRequestChannel"
-                               reply-channel="dataResponseChannel"
+    <int:channel id="accountDetailsRequestChan"/>
+
+    <int-http:outbound-gateway id="accountDetailsRequestGw"
+                               request-channel="accountDetailsRequestChan"
+                               reply-channel="responseChan"
                                http-method="GET"
-                               url="${opes.oanda.host}/pricing?instruments={instruments}%26since={since}"
-                               mapped-request-headers="Data-Type, User-Agent, Content-Type, Connection"
-                               expected-response-type="java.util.Map">
+                               expected-response-type="java.lang.String"
+                               mapped-request-headers="Request-Type, User-Agent, Content-Type, Connection, Accept"
+                               url-expression="T(org.springframework.web.util.UriComponentsBuilder)
+    .fromHttpUrl('${opes.nuntius.host}/api/${opes.nuntius.version}/accounts/{accountId}')
+    .buildAndExpand(#jsonPath(payload, '$.extId'))
+    .toUri()"/>
+
+    <int:channel id="pricingRequestChan"/>
+
+    <int-http:outbound-gateway id="pricingRequestGw"
+                               request-channel="pricingRequestChan"
+                               reply-channel="responseChan"
+                               http-method="GET"
+                               url="${opes.nuntius.host}/pricing?instruments={instruments}%26since={since}"
+                               mapped-request-headers="Request-Type, User-Agent, Content-Type, Connection, Accept"
+                               expected-response-type="java.lang.String">
         <int-http:uri-variable name="instruments" expression="payload.instruments"/>
         <int-http:uri-variable name="since" expression="payload.since"/>
     </int-http:outbound-gateway>
 
-    <!--<int:json-to-object-transformer input-channel="candleRequestChannel"-->
-    <!--output-channel="deserializedCandleRequestChannel"-->
-    <!--type="pl.jdev.opes_commons.rest.message.CandlesRequest"/>-->
+    <int:channel id="candleRequestChan"/>
 
-    <!--<int-http:outbound-gateway id="candleRequestGateway"-->
-    <!--request-channel="deserializedCandleRequestChannel"-->
-    <!--reply-channel="dataResponseChannel"-->
-    <!--mapped-request-headers="Data-Type, User-Agent, Content-Type, Connection"-->
-    <!--expected-response-type="pl.jdev.opes_commons.rest.wrapper.JsonCandlestickListWrapper"-->
-    <!--http-method="GET"-->
-    <!--url-expression="T(org.springframework.web.util.UriComponentsBuilder)-->
-    <!--.fromHttpUrl('${opes.oanda.host}/${opes.oanda.version}/instruments/{instrument}/candles')-->
-    <!--.queryParam('priceType', payload.getPriceType())-->
-    <!--.queryParam('granularity', payload.getGranularity())-->
-    <!--.query(payload.getCount() != 0 ? 'count=' + payload.getCount() : '')-->
-    <!--.query(payload.getFrom() != null ? 'from=' + payload.getFrom() : '')-->
-    <!--.query(payload.getTo() != null ? 'to=' + payload.getTo() : '')-->
-    <!--.buildAndExpand(payload.getInstrument())-->
-    <!--.toUri()"/>-->
-
-    <int-http:outbound-gateway id="candleRequestGateway"
-                               request-channel="candleRequestChannel"
-                               reply-channel="dataResponseChannel"
-                               mapped-request-headers="Data-Type, User-Agent, Content-Type, Connection"
-                               expected-response-type="pl.jdev.opes_commons.rest.wrapper.JsonCandlestickListWrapper"
+    <int-http:outbound-gateway id="candleRequestGw"
+                               request-channel="candleRequestChan"
+                               reply-channel="responseChan"
+                               mapped-request-headers="Request-Type, User-Agent, Content-Type, Connection, Accept"
+                               expected-response-type="java.lang.String"
                                http-method="GET"
                                url-expression="T(org.springframework.web.util.UriComponentsBuilder)
-    .fromHttpUrl('${opes.oanda.host}/${opes.oanda.version}/instruments/{instrument}/candles')
+    .fromHttpUrl('${opes.nuntius.host}/api/${opes.nuntius.version}/instruments/{instrument}/candles')
     .queryParam('priceType', #jsonPath(payload, '$.priceType'))
     .queryParam('granularity', #jsonPath(payload, '$.granularity'))
     .query(#jsonPath(payload, '$.count') != 0 ? 'count=' + #jsonPath(payload, '$.count') : '')
@@ -127,66 +158,89 @@
     .buildAndExpand(#jsonPath(payload, '$.instrument'))
     .toUri()"/>
 
-    <int-http:outbound-gateway id="smaRequestGateway"
-                               request-channel="smaRequestChannel"
-                               reply-channel="dataResponseChannel"
-                               http-method="POST"
-                               url="${opes.bot.host}/${opes.bot.version}/indicator/sma"
-                               mapped-request-headers="Data-Type, User-Agent, Content-Type, Connection"
-                               expected-response-type="java.util.Map"/>
+    <int:channel id="orderDetailsRequestChan"/>
 
-    <int-http:outbound-gateway id="emaRequestGateway"
-                               request-channel="emaRequestChannel"
-                               reply-channel="dataResponseChannel"
-                               http-method="POST"
-                               url="${opes.bot.host}/${opes.bot.version}/indicator/ema"
-                               mapped-request-headers="Data-Type, User-Agent, Content-Type, Connection"
-                               expected-response-type="java.util.Map"/>
-
-    <!--Action-->
-    <int:channel id="actionRequestChannel"/>
-    <int:channel id="actionRequestDLChannel">
-        <int:queue capacity="10"/>
-    </int:channel>
-    <int:channel id="actionResponseChannel"/>
-    <int:channel id="createOrderChannel"/>
-    <int:channel id="cancelOrderChannel"/>
-    <int:channel id="closeTradeChannel"/>
-
-    <int-http:inbound-gateway id="actionGateway"
-                              supported-methods="POST"
-                              path="/action"
-                              request-channel="actionRequestChannel"
-                              reply-channel="actionResponseChannel"
-                              mapped-request-headers="Action-Type, User-Agent, Content-Type, Connection"/>
-
-    <int:header-value-router id="actionRouter"
-                             input-channel="actionRequestChannel"
-                             header-name="action-type">
-        <int:mapping value="createOrder" channel="createOrderChannel"/>
-        <int:mapping value="cancelOrder" channel="cancelOrderChannel"/>
-        <int:mapping value="closeTrade" channel="closeTradeChannel"/>
-    </int:header-value-router>
-
-    <int-http:outbound-channel-adapter id="createOrderOutboundAdapter"
-                                       channel="createOrderChannel"
-                                       http-method="POST"
-                                       url="${opes.oanda.host}/${opes.oanda.version}/orders"/>
-
-    <int-http:outbound-channel-adapter id="cancelOrderOutboundAdapter"
-                                       channel="cancelOrderChannel"
-                                       http-method="PUT"
-                                       url-expression="T(org.springframework.web.util.UriComponentsBuilder)
-    .fromHttpUrl('${opes.oanda.host}/${opes.oanda.version}/orders/{extOrderId}')
-    .buildAndExpand(payload.getExtOrderId())
+    <int-http:outbound-gateway id="orderDetailsRequestGw"
+                               request-channel="orderDetailsRequestChan"
+                               reply-channel="responseChan"
+                               http-method="GET"
+                               expected-response-type="java.lang.String"
+                               mapped-request-headers="Request-Type, User-Agent, Content-Type, Connection, Accept"
+                               url-expression="T(org.springframework.web.util.UriComponentsBuilder)
+    .fromHttpUrl('${opes.nuntius.host}/api/${opes.nuntius.version}/accounts/{accountId}/orders/{orderId}')
+    .buildAndExpand(#jsonPath(payload, '$.accountId'), #jsonPath(payload, '$.extId') )
     .toUri()"/>
 
-    <int-http:outbound-channel-adapter id="closeTradeOutboundAdapter"
-                                       channel="closeTradeChannel"
-                                       http-method="PUT"
-                                       url-expression="T(org.springframework.web.util.UriComponentsBuilder)
-    .fromHttpUrl('${opes.oanda.host}/${opes.oanda.version}/trades/{extTradeId}/close')
-    .buildAndExpand(payload.getExtOrderId())
+    <int:channel id="tradeDetailsRequestChan"/>
+
+    <int-http:outbound-gateway id="tradeDetailsRequestGw"
+                               request-channel="tradeDetailsRequestChan"
+                               reply-channel="responseChan"
+                               http-method="GET"
+                               expected-response-type="java.lang.String"
+                               mapped-request-headers="Request-Type, User-Agent, Content-Type, Connection, Accept"
+                               url-expression="T(org.springframework.web.util.UriComponentsBuilder)
+    .fromHttpUrl('${opes.nuntius.host}/api/${opes.nuntius.version}/accounts/{accountId}/trades/{tradeId}')
+    .buildAndExpand(#jsonPath(payload, '$.accountId'), #jsonPath(payload, '$.extId') )
+    .toUri()"/>
+
+    <int:channel id="smaRequestChan"/>
+
+    <int-http:outbound-gateway id="smaRequestGw"
+                               request-channel="smaRequestChan"
+                               reply-channel="responseChan"
+                               http-method="POST"
+                               url="${opes.bot.host}/api/${opes.bot.version}/indicator/sma"
+                               mapped-request-headers="Request-Type, User-Agent, Content-Type, Connection, Accept"
+                               expected-response-type="java.lang.String"/>
+
+    <int:channel id="emaRequestChan"/>
+
+    <int-http:outbound-gateway id="emaRequestGw"
+                               request-channel="emaRequestChan"
+                               reply-channel="responseChan"
+                               http-method="POST"
+                               url="${opes.bot.host}/api/${opes.bot.version}/indicator/ema"
+                               mapped-request-headers="Request-Type, User-Agent, Content-Type, Connection"
+                               expected-response-type="java.lang.String"/>
+
+    <int:channel id="createOrderChan"/>
+
+    <int-http:outbound-gateway id="createOrderOutboundGw"
+                               request-channel="createOrderChan"
+                               reply-channel="responseChan"
+                               http-method="POST"
+                               mapped-request-headers="Request-Type, User-Agent, Content-Type, Connection, Accept"
+                               expected-response-type="java.lang.String"
+                               url-expression="T(org.springframework.web.util.UriComponentsBuilder)
+    .fromHttpUrl('${opes.nuntius.host}/api/${opes.nuntius.version}/accounts/{accountId}/orders')
+    .buildAndExpand(#jsonPath(payload, '$.accountId'))
+    .toUri()"/>
+
+    <int:channel id="cancelOrderChan"/>
+
+    <int-http:outbound-gateway id="cancelOrderOutboundGw"
+                               request-channel="cancelOrderChan"
+                               reply-channel="responseChan"
+                               http-method="POST"
+                               mapped-request-headers="Request-Type, User-Agent, Content-Type, Connection, Accept"
+                               expected-response-type="java.lang.String"
+                               url-expression="T(org.springframework.web.util.UriComponentsBuilder)
+    .fromHttpUrl('${opes.nuntius.host}/api/${opes.nuntius.version}/accounts/{accountId}/orders/{orderId}/cancel')
+    .buildAndExpand(#jsonPath(payload, '$.accountId'), #jsonPath(payload, '$.orderId'))
+    .toUri()"/>
+
+    <int:channel id="closeTradeChan"/>
+
+    <int-http:outbound-gateway id="closeTradeOutboundGw"
+                               request-channel="closeTradeChan"
+                               reply-channel="responseChan"
+                               http-method="PUT"
+                               mapped-request-headers="Request-Type, User-Agent, Content-Type, Connection, Accept"
+                               expected-response-type="java.lang.String"
+                               url-expression="T(org.springframework.web.util.UriComponentsBuilder)
+    .fromHttpUrl('${opes.nuntius.host}/api/${opes.nuntius.version}/accounts/{accountId}/trades/{tradeId}/close')
+    .buildAndExpand(#jsonPath(payload, '$.accountId'), #jsonPath(payload, '$.tradeId'))
     .toUri()"/>
 
 </beans>
